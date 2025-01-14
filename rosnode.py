@@ -1,33 +1,47 @@
 import rclpy
 from rclpy.node import Node
-
+from rclpy.action import ActionClient
 from printer import Printer
-
+from dual_arm_interfaces.action import ArmTask
 
 
 class RosNode(Node):
     def __init__(self):
         try:
-            # rclpy.init()
             super().__init__("ZmeIsaacRosNode")
+            Printer.print_normal("ZmeIsaacRosNode was already initialized")
         except RuntimeError as e:
-            print("rclpy was already initialized:", e)
+            Printer.print_error("rclpy was already initialized:", e)
 
-        # self._action_client = ActionClient(self, ArmTask, 'action_topic')
+        self._action_client = ActionClient(self, ArmTask, 'action_topic')
 
-        # add_reference_to_stage(USD_CUP, USD_CUP_TAR)
-        # add_reference_to_stage(USD_WINE, USD_WINE_TAR)
+    def sendGoal(self, goal_value:int):
+        if not self._action_client.wait_for_server(timeout_sec=5.0):
+            Printer.print_error('Action server not available!')
+            return
+        goal_msg = ArmTask.Goal()
+        goal_msg = goal_value
 
-        # cup_prim = XFormPrim(USD_CUP_TAR)
-        # cup_prim.set_scale([0.1, 0.1, 0.1])
-        # cup_prim.set_world_pose([0.8, 0.15, 0.6])
+        self._action_client.wait_for_server()
+        future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedbackCallback)
+        future.add_done_callback(self.goalResponseCallback)
 
-        # wine_prim = XFormPrim(USD_WINE_TAR)
-        # wine_prim.set_scale([0.1, 0.1, 0.1])
-        # wine_prim.set_world_pose([0.8, -0.3, 0.6])
+    def goalResponseCallback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            Printer.print_normal("Goal rejected")
+            return
 
-        # self.create_point()
+        Printer.print_normal("Goal accepted")
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self.resultCallback)
 
+    def feedbackCallback(self, feedback_msg):
+        Printer.print_normal(f"Feedback: {feedback_msg.feedback.feedback}")
+
+    def resultCallback(self, future):
+        result = future.result().result
+        Printer.print_normal(f"Result: {result.result}")
 
 
     # try:

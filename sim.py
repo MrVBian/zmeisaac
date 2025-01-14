@@ -17,8 +17,10 @@ sys.path.append(current_dir)
 print("project_root: ", current_dir)
 from global_variables import *
 from printer import Printer
+from rosnode import *
 
 
+from threading import Thread
 import numpy as np
 from pxr import Usd, UsdGeom, Gf, UsdShade
 import omni.isaac.core.utils.prims as prims_utils # tranform
@@ -88,9 +90,13 @@ class Builder:
                     num += 1
 
 
+def rosSpinThread(node):
+    rclpy.spin(node)
+
+
 def main():
-    # 确保 Omniverse Nucleus 连接成功
-    assets_root = get_assets_root_path()
+    # 场景
+    assets_root = get_assets_root_path()    # 确保 Omniverse Nucleus 连接成功
     if assets_root is None:
         Printer.print_normal("[ERROR]: 无法连接到 Omniverse Nucleus，请检查 Nucleus 服务器。")
         return
@@ -98,36 +104,28 @@ def main():
         Printer.print_normal("assets_root: " + assets_root)
     builder = Builder()
 
-    # Initialize the simulation context
+    # 仿真器
     sim_cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(sim_cfg)
     world = World(stage_units_in_meters=1.0)
-    # # # USD 资源路径和目标路径
-    # Printer.print_error("TEST")
-    # add_reference_to_stage(USD_CUP, USD_CUP_TAR)
-    # Printer.print_error("TEST")
-
-    # stage = world.stage
-    # cup_prim = stage.GetPrimAtPath(USD_CUP_TAR)
-    # if cup_prim.IsValid():
-    #     xform = UsdGeom.Xformable(cup_prim)
-    #     xform.ClearXformOpOrder()
-    #     xform.AddTranslateOp().Set((0.8, 0.15, 0.6))
-    #     xform.AddScaleOp().Set((0.1, 0.1, 0.1))
-
-    #     # Ensure materials are properly assigned
-    #     material_path = USD_CUP_TAR + "/Looks"  # Assuming materials are under a "Looks" folder
-    #     material_prim = stage.GetPrimAtPath(material_path)
-    #     if material_prim.IsValid():
-    #         UsdShade.MaterialBindingAPI(cup_prim).Bind(UsdShade.Material(material_prim))
     world.reset()
     Printer.print_normal("[INFO]: Setup complete...")
 
-    # Simulate physics
-    while simulation_app.is_running():
-        # perform step
-        sim.step()
+    # ROS
+    rclpy.init()
+    rosNode = RosNode()
+    spin_thread = Thread(target=rosSpinThread, args=(rosNode,))
+    spin_thread.start()
+    # 主线程中发送目标
+    rosNode.sendGoal(5)
 
+    # 物理仿真
+    while simulation_app.is_running():
+        sim.step()  # step
+
+    # ROS
+    rosNode.destroy_node()
+    rclpy.shutdown()
 
 
 if __name__ == "__main__":
