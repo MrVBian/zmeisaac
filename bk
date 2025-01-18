@@ -1,0 +1,70 @@
+# import omni.kit.commands
+# from pxr import Sdf
+# import omni.usd
+
+# omni.kit.commands.execute('CreateReference',
+# 	path_to=Sdf.Path('/World/zeroSample'),
+# 	asset_path='file:/home/Documents/Prj/Zeros/zeroSample.usd',
+# 	usd_context=omni.usd.get_context())
+
+
+
+
+# import omni.kit.commands
+# debugPrimPath = "/World/debug_relative"
+# omni.kit.commands.execute(
+#     "CreateMeshSphere",
+#     stage=omni.usd.get_context().get_stage(),
+#     path=debugPrimPath,
+#     translation=relativeTranslation,  # 这里使用计算的相对位置
+# )
+
+
+# from omni.isaac.dynamic_control import _dynamic_control
+# import numpy as np
+# dc = _dynamic_control.acquire_dynamic_control_interface()
+# articulation = dc.get_articulation("/World/envs/env_0/zmebot_description/world")
+# if articulation == _dynamic_control.INVALID_HANDLE:
+# 	print("not get")
+# else:
+# 	print("get")
+# # Call this each frame of simulation step if the state of the articulation is changing.
+# dc.wake_up_articulation(articulation)
+# joint_angles = [np.random.rand(40) * 0.1 ]
+# dofsCot = dc.get_articulation_dof_count(articulation)
+# print(f"{dofsCot}")
+
+# print(f"{joint_angles}")
+# dc.set_articulation_dof_position_targets(articulation, joint_angles)
+
+
+
+# 如下基于isaac lab的python代码启动isaac sim4.2：
+# ```python
+# import argparse
+# from omni.isaac.lab.app import AppLauncher
+# parser = argparse.ArgumentParser(description="Pour wine stage.")    # create argparser
+# AppLauncher.add_app_launcher_args(parser)   # append AppLauncher cli args
+# args_cli = parser.parse_args()              # parse the arguments
+# # app_launcher = AppLauncher(args_cli, settings={"rendering/preset": "Medium"})
+# app_launcher = AppLauncher(args_cli)        # launch omniverse app
+# simulation_app = app_launcher.app
+# """Rest everything follows."""
+# from omni.isaac.lab.sim import SimulationCfg, SimulationContext
+
+# def main():
+#     sim_cfg = SimulationCfg(dt=0.01, device=args_cli.device)
+#     sim = SimulationContext(sim_cfg)
+#     world = World(stage_units_in_meters=1.0)
+#     world.reset()
+
+#     while simulation_app.is_running():
+#         sim.step()  # step
+# ```
+# isaac sim4.2下报错：
+# ```error
+# PhysX error: PxArticulationJointReducedCoordinate::setDriveTarget(): it is illegal to call this method if PxSceneFlag::eENABLE_DIRECT_GPU_API is enabled!, FILE /builds/omniverse/physics/physx/source/physx/src/NpArticulationJointReducedCoordinate.cpp, LINE 304
+# ```
+# 告诉我如何代码关闭eENABLE_DIRECT_GPU_API
+
+
