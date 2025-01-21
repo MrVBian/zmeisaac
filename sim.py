@@ -1,14 +1,11 @@
-import argparse
 from omni.isaac.lab.app import AppLauncher
-parser = argparse.ArgumentParser(description="Pour wine stage.")    # create argparser
-AppLauncher.add_app_launcher_args(parser)   # append AppLauncher cli args
-args_cli = parser.parse_args()              # parse the arguments
+import argparse
+parser = argparse.ArgumentParser(description="Pour wine stage.")
+AppLauncher.add_app_launcher_args(parser)
+args_cli = parser.parse_args()
 # args_cli.headless = True
 # app_launcher = AppLauncher(args_cli, settings={"rendering/preset": "Medium"})
-# app_launcher = AppLauncher(args_cli)        # launch omniverse app
-app_launcher = AppLauncher(args_cli, settings={
-    "physx/sceneFlags": "PxSceneFlag::eENABLE_DIRECT_GPU_API=0",  # Disable direct GPU API
-})
+app_launcher = AppLauncher(args_cli)        # launch omniverse app
 simulation_app = app_launcher.app
 """Rest everything follows."""
 from omni.isaac.lab.sim import SimulationCfg, SimulationContext
@@ -27,7 +24,7 @@ from rosnode import *
 from threading import Thread
 import numpy as np
 from math import atan2, asin
-from pxr import Usd, UsdGeom, UsdShade
+from pxr import Usd, UsdGeom, UsdShade, Sdf
 from pxr import UsdPhysics, PhysxSchema, Gf
 import omni
 import omni.isaac.core.utils.prims as prims_utils # tranform
@@ -35,7 +32,8 @@ from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.isaac.core.prims import XFormPrim
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core import World
-from omni.isaac.core.utils.stage import open_stage
+from omni.isaac.core.utils.stage import open_stage, get_current_stage
+
 
 import torch
 import omni.isaac.lab.sim as sim_utils
@@ -44,6 +42,10 @@ from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.lab.utils import configclass
 
 from omni.isaac.dynamic_control import _dynamic_control
+from omni.isaac.core.articulations import Articulation
+from omni.isaac.core.utils.types import ArticulationAction
+
+import omni.physx as _physx
 ######
 
 class Scene:
@@ -53,6 +55,12 @@ class Scene:
         # 获取 Dynamic Control 接口
         self.dc = _dynamic_control.acquire_dynamic_control_interface()
         open_stage(USD_SCENE)
+        # 获取当前打开的 Stage
+        self.stage = get_current_stage()
+
+
+
+
 
         # 加载资源
         Printer.print_normal("loading assets")
@@ -89,9 +97,11 @@ class Scene:
     def GetArt(self, robotName="zmebot_description"):
         if robotName in self._artDicart:
             return self._artDicart[robotName]
-        
+                    
+        # 检查 prim 是否存在
+        prim_path = ROBOT+"/world"
         # 获取机械臂 Articulation 句柄
-        art = self.dc.get_articulation("/World/envs/env_0/zmebot_description/world")
+        art = self.dc.get_articulation(prim_path)
         if art == _dynamic_control.INVALID_HANDLE:
             Printer.print_error(f" {robotName}无法获取 articulation 句柄")
             # return
@@ -100,9 +110,23 @@ class Scene:
         if dofsNum == 0:
             Printer.print_error(f"{robotName}未检测到DOF")
             # return
+        # art = Articulation(prim_path="/World/envs/env_0/zmebot_description/world", name="zmebot_description")
         self._artDicart["zmebot_description"] = art
+
         Printer.print_normal(f"{robotName} Dof nums: {dofsNum}")
-        return art
+        # return art
+
+
+        # 创建 Articulation 对象
+        articulation = Articulation(prim_path=prim_path)
+        articulation.initialize()
+
+        # 检查关节名称是否加载成功
+        if articulation.dof_names is None:
+            Printer.print_error("Failed to initialize articulation. Check the model and scene.")
+        else:
+            Printer.print_normal(f"Articulation DOF Names: {articulation.dof_names}")
+        return art, articulation
 
 
     def AddRigidBody(self, prim):
@@ -189,13 +213,13 @@ class Scene:
         singular = sy < 1e-6  # 判断是否接近奇异解
 
         if not singular:
-            x = atan2(matrix[2][1], matrix[2][2])  # Roll
-            y = asin(-matrix[2][0])                        # Pitch
-            z = atan2(matrix[1][0], matrix[0][0])  # Yaw
+            x = atan2(matrix[2][1], matrix[2][2])   # Roll
+            y = asin(-matrix[2][0])                 # Pitch
+            z = atan2(matrix[1][0], matrix[0][0])   # Yaw
         else:
             x = atan2(-matrix[1][2], matrix[1][1])  # Roll
-            y = asin(-matrix[2][0])                         # Pitch
-            z = 0                                                    # Yaw
+            y = asin(-matrix[2][0])                 # Pitch
+            z = 0                                   # Yaw
 
         return x, y, z  # 返回欧拉角 (roll, pitch, yaw)
 
@@ -253,9 +277,9 @@ def RosSpinThread(node):
 def RunSimulator(sim: sim_utils.SimulationContext, scene: Scene, rosNode: RosNode):
     """运行模拟循环。"""
     # 提取场景实体
-    scene.GetArt()
-    dc = scene.dc
-    art = scene.GetArt()
+    # art = scene.GetArt()
+    art, articulation = scene.GetArt()
+    dc = _dynamic_control.acquire_dynamic_control_interface()
     dofsCot = dc.get_articulation_dof_count(art)
     jointHandle = []
     jointName = []
@@ -279,20 +303,16 @@ def RunSimulator(sim: sim_utils.SimulationContext, scene: Scene, rosNode: RosNod
         jointHandle.append(handle)
         # initJointPositions.append(pos)
         # jointHandle[name] = handle
+
         print(f"Sim Joint {i} name: {name}")
 
     sim_dt = sim.get_physics_dt()           # 定义模拟步长
     Printer.print_normal(f"模拟步长{sim_dt}")
-    # count = 0
+
     # 模拟循环
     while simulation_app.is_running():
         # 执行步骤
-        sim.step()
-        # 增加计数器
-        # count += 1
-        # 更新缓冲区
-        # scene.update(sim_dt)
-        # Printer.print_normal("step")
+        sim.step(render=True)
 
         if rosNode.syncJointClock == 1:
             rosNode.syncJointClock = 2
@@ -313,16 +333,20 @@ def RunSimulator(sim: sim_utils.SimulationContext, scene: Scene, rosNode: RosNod
                 else:
                     targetPositions.append(0)  # 维持当前角度
 
-            # # robotPrim = prims_utils.get_prim_at_path(ROBOT)
-            # target_joint_positions = torch.tensor(targetPositions)
 
-            # robot = Articulation(prim_path=ROBOT)
-            # controller = ArticulationController(robot)
-            # robot.set_joint_position_target(target_joint_positions)
+            prim_path = ROBOT+"/world"
+            omni.kit.commands.execute(
+                "ChangeProperty",
+                prop_path=f"{prim_path}.joint_positions",
+                value=targetPositions,
+                prev=None,  # 如果需要撤销，可以设置 prev 的值
+            )
 
-            # Call this each frame of simulation step if the state of the articulation is changing.
-            dc.wake_up_articulation(art)
-            dc.set_articulation_dof_position_targets(art, targetPositions)
+            action = ArticulationAction(joint_positions=np.array(targetPositions))
+            articulation.apply_action(action)
+            
+            # Printer.print_normal(f"{type(articulation)}")
+            # Printer.print_normal(f"dof_names: {len(articulation.dof_names)}")
 
             rosNode.syncJointClock = 0
 
@@ -343,6 +367,7 @@ def main():
     world = World(stage_units_in_meters=1.0)
     world.reset()
     Printer.print_normal("[INFO]: Setup complete...")
+    
 
     # ROS
     rclpy.init()
