@@ -51,6 +51,13 @@
 # simulation_app = app_launcher.app
 # """Rest everything follows."""
 # from omni.isaac.lab.sim import SimulationCfg, SimulationContext
+# import omni.isaac.lab.sim as sim_utils
+
+# def RunSimulator(sim: sim_utils.SimulationContext):
+#     """运行模拟循环。"""
+#     while simulation_app.is_running():
+#         # 执行步骤
+#         sim.step(render=True)
 
 # def main():
 #     sim_cfg = SimulationCfg(dt=0.01, device=args_cli.device)
@@ -58,8 +65,7 @@
 #     world = World(stage_units_in_meters=1.0)
 #     world.reset()
 
-#     while simulation_app.is_running():
-#         sim.step()  # step
+#     RunSimulator(sim)
 # ```
 # isaac sim4.2下报错：
 # ```error
@@ -68,3 +74,7 @@
 # 告诉我如何代码关闭eENABLE_DIRECT_GPU_API
 
 
+https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physx/docs/index.html
+
+
+2025-01-22 02:47:06  [Error] [omni.physx.plugin] PhysX error: PxArticulationLink::setGlobalPose(): it is illegal to call this method if PxSceneFlag::eENABLE_DIRECT_GPU_API is enabled!, FILE /builds/omniverse/physics/physx/source/physx/src/NpArticulationLink.cpp, LINE 353

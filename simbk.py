@@ -37,27 +37,24 @@ from omni.isaac.core.utils.stage import open_stage, get_current_stage
 
 import torch
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.lab.utils import configclass
+
 
 from omni.isaac.dynamic_control import _dynamic_control
 from omni.isaac.core.articulations import Articulation
 from omni.isaac.core.utils.types import ArticulationAction
 
-import omni.physx as _physx
+import omni.physx
 ######
 
 class Scene:
     def __init__(self):
         self._primDic = {}
-        self._artHandleDic = {}
-        self._articulationDic = {}
+        self._artDicart = {}
         # 获取 Dynamic Control 接口
         self.dc = _dynamic_control.acquire_dynamic_control_interface()
         open_stage(USD_SCENE)
         # 获取当前打开的 Stage
-        self.stage = get_current_stage()
+        stage = self.stage = get_current_stage()
 
         # # Physics
         # scene = UsdPhysics.Scene.Define(stage, Sdf.Path("/physicsScene"))
@@ -103,9 +100,9 @@ class Scene:
         else:
             Printer.print_warning(f"{name}的prim不存在")
     
-    def GetArtHandle(self, robotName="zmebot_description"):
-        if robotName in self._artHandleDic:
-            return self._artHandleDic[robotName]
+    def GetArt(self, robotName="zmebot_description"):
+        if robotName in self._artDicart:
+            return self._artDicart[robotName]
                     
         # 检查 prim 是否存在
         prim_path = ROBOT+"/world"
@@ -120,18 +117,12 @@ class Scene:
             Printer.print_error(f"{robotName}未检测到DOF")
             # return
         # art = Articulation(prim_path="/World/envs/env_0/zmebot_description/world", name="zmebot_description")
-        self._artHandleDic["zmebot_description"] = art
+        self._artDicart["zmebot_description"] = art
 
         Printer.print_normal(f"{robotName} Dof nums: {dofsNum}")
-        Printer.print_normal(f"type{type(art)}")
-        Printer.print_normal(f"class{art}")
-        return art
-    
-    def GetArticulation(self, robotName="zmebot_description"):
-        if robotName in self._articulationDic:
-            return self._articulationDic[robotName]
-        
-        prim_path = ROBOT+"/world"
+        # return art
+
+
         # 创建 Articulation 对象
         articulation = Articulation(prim_path=prim_path)
         articulation.initialize()
@@ -141,11 +132,8 @@ class Scene:
             Printer.print_error("Failed to initialize articulation. Check the model and scene.")
         else:
             Printer.print_normal(f"Articulation DOF Names: {articulation.dof_names}")
+        return art, articulation
 
-        self._articulationDic[robotName] = articulation
-        Printer.print_normal(f"type{type(articulation)}")
-        Printer.print_normal(f"class{articulation}")
-        return articulation
 
     def AddRigidBody(self, prim):
         # 确保 Prim 具有 `PhysicsMassAPI`
@@ -295,22 +283,36 @@ def RunSimulator(sim: sim_utils.SimulationContext, scene: Scene, rosNode: RosNod
     """运行模拟循环。"""
     # 提取场景实体
     # art = scene.GetArt()
-    art = scene.GetArtHandle()
-    articulation = scene.GetArticulation()
+    art, articulation = scene.GetArt()
     dc = _dynamic_control.acquire_dynamic_control_interface()
     dofsCot = dc.get_articulation_dof_count(art)
     jointHandle = []
     jointName = []
+    initJointPositions = []
+    # ctlJointName = {}
+    # for i in range(1, 8):
+    #     ctlJointName[f"left_joint{i}"] = True
+    #     ctlJointName[f"right_joint{i}"] = True
+    # ctlJointName["rotate_base_joint"] = True
+    # ctlJointName["lifting_base_joint"] = True
+    # for i in range(1, 3):
+    #     ctlJointName[f"gimbal_joint{i}"] = True
+    #     ctlJointName[f"left_finger_joint{i}"] = True
+    #     ctlJointName[f"right_finger_joint{i}"] = True
 
     for i in range(dofsCot):
         handle = dc.get_articulation_dof(art, i)
         name = dc.get_dof_name(handle)
+        # pos = dc.get_dof_position(handle)
         jointName.append(name)
         jointHandle.append(handle)
+        # initJointPositions.append(pos)
+        # jointHandle[name] = handle
+
         # print(f"Sim Joint {i} name: {name}")
 
     sim_dt = sim.get_physics_dt()           # 定义模拟步长
-    # Printer.print_normal(f"模拟步长{sim_dt}")
+    Printer.print_normal(f"模拟步长{sim_dt}")
 
     # 模拟循环
     while simulation_app.is_running():
@@ -336,8 +338,12 @@ def RunSimulator(sim: sim_utils.SimulationContext, scene: Scene, rosNode: RosNod
                 else:
                     targetPositions.append(0)  # 维持当前角度
 
+
             action = ArticulationAction(joint_positions=np.array(targetPositions))
             articulation.apply_action(action)
+            
+            # Printer.print_normal(f"{type(articulation)}")
+            # Printer.print_normal(f"dof_names: {len(articulation.dof_names)}")
 
             rosNode.syncJointClock = 0
 
@@ -358,9 +364,6 @@ def main():
     world.reset()
     Printer.print_normal("[INFO]: Setup complete...")
     
-    art = scene.GetArtHandle()
-    articulation = scene.GetArticulation()
-
     # ROS
     rclpy.init()
     rosNode = RosNode()
@@ -370,6 +373,9 @@ def main():
     # rosNode.SendGoal(0)
     # builder.PointsToCoor(rosNode)
 
+    # 物理仿真
+    # while simulation_app.is_running():
+    #     sim.step()  # step
     RunSimulator(sim, scene, rosNode)
 
     # ROS
