@@ -12,4 +12,6 @@ USD_WINE_TAR= "/World/envs/env_0/wine_open"
 
 # Robot
 ROBOT = "/World/envs/env_0/zmebot_description"
+ROBOT_USD = "omniverse://localhost/Projects/zmebot_description6/zmebot_description/zmebot_description.usd"
 BASE_LINK = "/World/envs/env_0/zmebot_description/base_link"
+
