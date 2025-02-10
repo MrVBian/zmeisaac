@@ -161,7 +161,7 @@ class Scene:
         x_range = [-0.1, 0.3]
         y_range = [-0.5, 0.5]
         z_range = [0.3, 0.7]
-        step = 0.1
+        step = 0.05
         # 计算每个维度上的长度范围
         x_range = np.arange(x_range[0], x_range[1], step)
         y_range = np.arange(y_range[0], y_range[1], step)

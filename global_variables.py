@@ -7,8 +7,10 @@ USD_SCENE   = "omniverse://localhost/Projects/Scene/bzw/pourwine3.usd"
 # USD_WINE    = "omniverse://localhost/Projects/Resources/redwine/wine_open.usd"
 USD_CUP     = "file:/home/zme/Software/IsaacLab/zmeisaac/resources/redwine/cup.usd"
 USD_WINE    = "file:/home/zme/Software/IsaacLab/zmeisaac/resources/redwine/wine_open.usd"
-USD_CUP_TAR = "/World/envs/env_0/cup"
-USD_WINE_TAR= "/World/envs/env_0/wine_open"
+USD_TABLE   = "file:/home/zme/Software/IsaacLab/zmeisaac/resources/table/Appleseed_CoffeeTable.usd"
+USD_CUP_TAR   = "/World/envs/env_0/cup"
+USD_WINE_TAR  = "/World/envs/env_0/wine_open"
+USD_TABLE_TAR = "/World/envs/env_0/table"
 
 # Robot
 ROBOT = "/World/envs/env_0/zmebot_description"
